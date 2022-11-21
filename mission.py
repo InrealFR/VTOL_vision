@@ -3,7 +3,7 @@
 """
 Created on 2022
 
-@author: Thomas Pavot
+@author: Thomas Pavot modified by Hugo Pons
 """
 import os
 import numpy as np
@@ -30,8 +30,6 @@ import sys
 #--------------------- Parametres du vehicule ----------------------------
 vitesse = .3 #m/s
 altitudeDeVol = 15
-#exemple de position GPS
-  #locationMaisonStrasbourgTerrainBasket = LocationGlobalRelative(48.574458, 7.771747, 10)
 research_whiteSquare = True
 distanceAccuracy = 2 # rayon en metre pour valider un goto
 
@@ -41,29 +39,20 @@ global good_aruco_found
 global white_square_seen
 
 # Counter variables
-global counter_no_detect
-counter_no_detect = 0
-global counter_white_square
-counter_white_square = 0
-global counter_something
-counter_something = 0
+global counter_no_detect = 0
+global counter_white_square = 0
+global counter_something = 0
 
-global id_to_test
-id_to_test = -1
+global id_to_test = -1
 global saved_markers
 # Initialized saved_markers with Unmanned Valley GPS position
 saved_markers = {-1: (LocationGlobalRelative(52.171490,4.417461,0), True)}
 
-global package_dropped
-package_dropped = False
-global x_centerPixel_target
-x_centerPixel_target = None
-global y_centerPixel_target
-y_centerPixel_target = None
-global x_imageCenter
-x_imageCenter = 0
-global y_imageCenter
-y_imageCenter = 0
+global package_dropped = False
+global x_centerPixel_target =  None
+global y_centerPixel_target =  None
+global x_imageCenter = 0
+global y_imageCenter = 0
 global altitudeAuSol
 global altitudeRelative
 global longitude
@@ -87,11 +76,11 @@ redir=RedirectText(log)
 # sys.stdout=redir
 # sys.stderr=redir
 
-def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, silent_case, truck_case):
+def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy):
   # Boolean variables
   global aruco_seen
-  global good_aruco_found
-  global white_square_seen
+  global aruco_found
+  global square_found
 
   # Counter variables
   global counter_no_detect
@@ -115,7 +104,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
   vy = 0
   vz = 0
 
-  if altitudeAuSol < 5 :
+  if altitudeAuSol < 5 : #on asservit moins violent quand on se raproche du sol
     kpx = 0.003
     kpy = 0.003
   else:
@@ -123,7 +112,8 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     kpy = 0.005
 
   print("Pixels values - x:%s - y:%s" % (x_centerPixel_target, y_centerPixel_target))
-  if x_centerPixel_target == None or y_centerPixel_target == None :   # echec Detection
+  if x_centerPixel_target == None or y_centerPixel_target == None :
+      0# echec Detection
     if counter_no_detect > 10 :   #on fixe le nombre d'image consecutive sans Detection pour considerer qu il ne detecte pas
       if altitudeAuSol > 30 :  # si on altitudeRelative sup a 25m stop le thread
         drone_object.set_velocity(0, 0, 0, 1)
@@ -131,7 +121,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
         return 0, 0, 0, 0
       else :  # pas de Detection Drone prend de l altitude
         vx = 0
-        vy = 0
+        vy = 1
         vz = 0
         drone_object.set_velocity(vx, vy, vz, 1)
         #
@@ -202,16 +192,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
       vz = 0
       drone_object.set_velocity(vy, vx, vz, 1)  # Pour le sense de la camera, X controle le 'east' et Y controle le 'North'
       #print("vy : "+str(vy)+" vx : "+str(vx)+" vz : "+str(vz)+" dist_center decale")
-      
-    if silent_case :
-      vz = 0
-      drone_object.set_velocity(vy, vx, vz, 1)  # Pour le sense de la camera, X controle le 'east' et Y controle le 'North'
 
-    if truck_case :
-      vz = vz/2
-      drone_object.set_velocity(vy, vx, vz, 1)  # Pour le sense de la camera, X controle le 'east' et Y controle le 'North'
-
-      
   # Return last errors and sums for derivative and integrator terms
   return errx, erry, errsumx, errsumy
   
@@ -219,8 +200,8 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
 def mission_largage(drone_name, id_to_find, truck):
   # Boolean variables
   global aruco_seen
-  global good_aruco_found
-  global white_square_seen
+  global aruco_found
+  global square_found
 
   # Counter variables
   global counter_no_detect
@@ -263,7 +244,7 @@ def mission_largage(drone_name, id_to_find, truck):
     heading = drone_object.vehicle.attitude.yaw
     
     #le srcipt Detection Target
-    x_centerPixel_target, y_centerPixel_target, aruco_seen, good_aruco_found, white_square_seen, saved_markers = detection_object.Detection_aruco(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
+    x_centerPixel_target, y_centerPixel_target, aruco_seen, aruco_found, square_found, saved_markers = detection_object.Detection_aruco(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
     # Asservissement control
     if drone_object.get_mode() == "GUIDED" :
       last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, False, truck)
@@ -271,8 +252,8 @@ def mission_largage(drone_name, id_to_find, truck):
     if not drone_object.get_mode() == "GUIDED" and not drone_object.get_mode() == "AUTO":
       break
   
-    #--------------- Case 1: Good ArUco ID found -----------------------
-    if good_aruco_found:
+    #--------------- Case 1: ArUco found -----------------------
+    if aruco_found:
       print("[detection] Case 1: Good ArUco ID found!")
 
       if first_time_aruco_found:
@@ -289,20 +270,9 @@ def mission_largage(drone_name, id_to_find, truck):
       print("[mission] Current distance: %.2fpx ; Altitude: %.2fm." % (dist_center, altitudeAuSol))
 
       elapsed_time = time.time() - start_time
-      # Conditions pour faire le largage
-      if truck:
-        dist_condition = 100
-      else:
-        dist_condition = 200
-      if (dist_center <= dist_condition and altitudeAuSol < 2.0) or elapsed_time > 30: 
-        print("[mission] Largage !")
-        drone_object.move_servo(10, True, drone_name)
-        time.sleep(0.5)
-        package_dropped = True
-        break
-
+ 
     #--------------- Case 2: Some white square seen --------------------
-    elif white_square_seen:
+    elif square_found:
       print("[detection] Case 2: Some white square seen.")
 
       counter_no_detect = 0
@@ -321,29 +291,9 @@ def mission_largage(drone_name, id_to_find, truck):
           id_to_test = saved_id
           print("[mission] Detection targetted towards id %s" % id_to_test)
 
-    #--------------- Case 3: ArUco tag seen but id false ---------------
-    elif aruco_seen:
-      print("[detection] Case 3: ArUco seen BUT not good ArUco found.")
-
-      counter_no_detect = 0
-
-      # Since it is not the good ArUco, continue the AUTO mission
-      while drone_object.get_mode() != "AUTO" :
-          drone_object.passage_mode_Auto()
-
-      # Reset visual PID errors
-      last_errx = 0
-      last_erry = 0
-      errsumx = 0
-      errsumy = 0
-
-      saved_markers[id_to_test] = (saved_markers[id_to_test][0], True)
-      id_to_test = -1
-      # print("[mission] Detection targetted towards id %s" % id_to_test)
-
-    #--------------- Case 4: No detection of white or ArUco ------------
+    #--------------- Case 3: No detection of white or ArUco ------------
     else:
-      print("[detection] Case 4: No detection of white or ArUco.")
+      print("[detection] Case 3: No detection of white or ArUco.")
 
       counter_no_detect += 1
       counter_white_square = 0
@@ -384,8 +334,8 @@ def mission_largage(drone_name, id_to_find, truck):
 def mission_silent(drone_name):
   # Boolean variables
   global aruco_seen
-  global good_aruco_found
-  global white_square_seen
+  global aruco_found
+  global square_found
 
   # Counter variables
   global counter_no_detect
@@ -428,7 +378,7 @@ def mission_silent(drone_name):
     heading = drone_object.vehicle.attitude.yaw
     
     #le srcipt Detection Target
-    x_centerPixel_target, y_centerPixel_target, aruco_seen, good_aruco_found, white_square_seen, saved_markers = detection_object.Detection_aruco(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
+    x_centerPixel_target, y_centerPixel_target, aruco_found, square_found  = detection_object.Detection_aruco(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
     # Asservissement control
     if drone_object.get_mode() == "GUIDED" :
       last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, True)
@@ -437,7 +387,7 @@ def mission_silent(drone_name):
       break
   
     #--------------- Case 1: ArUco ID (good or not) or white square found -----------------------
-    if good_aruco_found or white_square_seen or aruco_seen:
+    if aruco_found or square_found or aruco_seen:
       print("[detection] Case 1: Something interesting!")
 
       if first_time_aruco_found:

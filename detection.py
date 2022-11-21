@@ -45,23 +45,22 @@ class Detection:
 
         #Ecriture dossiers
         self.dossier = datetime.now().strftime("%Y_%m_%d-%I:%M:%S_%p")
-        self.path = os.path.join("\imgs\data", self.dossier)
-        os.mkdir(self.path)  # création d'un dossier pour stocker la nouvelle image
+        self.path = os.path.join("/home/pc-0165/Bureau/VTOL_reco/VTOL_vision/data", self.dossier)
+        os.mkdir(self.path)  # création d'un dossier pour stocker les nouvelles images
 
         #dictionnaire aruco
         self.aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_5X5_1000)
         self.parameters = aruco.DetectorParameters_create()
         self.closeToAruco = False
 
+        
     def Detection_aterr(self, latitude, longitude, altitude, direction):
-        #INITIALISATION
+         #INITIALISATION
         start_time = time.time()
         self.aruco_found, self.square_found = False
         x_pixel, y_pixel = None
-
-        # TODO : régler le pathing
         arucoId = 0
-        frame = cv2.imread('arucos.jpg')  # définir un path d'une image
+        capture, frame = self.camera.read()  #recuperation de la vidéo générée auparavant
         font = cv2.FONT_HERSHEY_PLAIN  # Text font for frame annotation
         cv2.imshow('begin', frame)
 
@@ -78,8 +77,8 @@ class Detection:
             lower_bound = (0, 230, 0)  # white color in HLS space
             upper_bound = (255, 255, 255)
             mask_hls = cv2.inRange(hls, lower_bound, upper_bound)
-            cv2.imshow('blur', blur)
-            cv2.imshow('hls', mask_hls)
+            #cv2.imshow('blur', blur)
+            #cv2.imshow('hls', mask_hls)
 
             name = "Test_1_Img_"
             cv2.imwrite(os.path.join(self.path, "hls_" + name + ".png"),
@@ -103,28 +102,26 @@ class Detection:
 
                 if 0.90 <= ar <= 1.10:  # Condition sur l'aire de notre carré
                     cv2.drawContours(frame, [c], -1, (0, 0, 255), 2)
-                    x_centerPixel_target = np.mean(c, axis=0)[0][0]
-                    y_centerPixel_target = np.mean(c, axis=0)[0][1]
-                    # arrete_marker_pxl = sqrt(area)
+                   x_pixel =  x_centerPixel_target = np.mean(c, axis=0)[0][0]
+                   y_pixel =  y_centerPixel_target = np.mean(c, axis=0)[0][1]
                     cv2.imwrite(os.path.join(self.path, "final_.png"), frame)
                     pixelTest = mask_closing[int(y_centerPixel_target), int(x_centerPixel_target)]
                     if pixelTest == 255:  # verifie couleur du carre detecte 255 c est blanc
                         # Boolean and counter update
                         self.square_found = True
                         # ici : on a un carré blanc donc potentiellement un aruco, il faut asservir le drone en position pour se rapprocher et verifier si oui ou non
-        else:
+        else: #on a détécté un Aruco : cest plus simple
             ids = id.flatten()  # on s'assure que notre liste d'id est une liste de dimension 1
             for (markersCorners, markersIds) in zip(corners,
                                                     ids):  # on boucle sur les tuples de (corners, id)
                 corners = markersCorners.reshape((4, 2))  # les 4 coins et 2 coordonnées
                 (topLeft, topRight, bottomLeft, bottomRight) = corners
-                topLeft = (
-                    int(topLeft[0]),
-                    int(topLeft[1]))  # on récupère les coordonnées de chaque point pour l'affichage
+                topLeft = (int(topLeft[0]),int(topLeft[1]))  # on récupère les coordonnées de chaque point pour l'affichage
                 topRight = (int(topRight[0]), int(topRight[1]))
                 bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
                 bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
-
+                x_pixel = corners[0][0][0][0] + corners[0][0][1][0] + corners[0][0][2][0] + corners[0][0][3][0]
+                y_pixel = corners[0][0][0][1] + corners[0][0][1][1] + corners[0][0][2][1] + corners[0][0][3][1]
                 cv2.line(frame, topLeft, topRight, (0, 255, 0), 2)
                 cv2.line(frame, topRight, bottomRight, (0, 255, 0), 2)
                 cv2.line(frame, bottomRight, bottomLeft, (0, 255, 0), 2)
@@ -132,6 +129,6 @@ class Detection:
                 cv2.putText(frame, str(markersIds),
                             (topLeft[0], topLeft[1] - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 0, 255), 2)
                 cv2.imwrite(os.path.join(self.path, "final_.png"), frame)
-        cv2.imshow('final', frame)
+        #cv2.imshow('final', frame)
         cv2.waitKey(0)
         return(x_pixel, y_pixel , self.aruco_found , self.square_found) #on renvoie les deux booleens et nos pixels cible
