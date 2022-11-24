@@ -22,9 +22,9 @@ from dronekit import connect, VehicleMode, LocationGlobalRelative, LocationGloba
 from pymavlink import mavutil 
 from array import array
 from datetime import datetime
-from picamera import PiCamera,Color
-from picamera.array import PiRGBArray
-from utilities import get_distance_metres
+#from picamera import PiCamera,Color
+#from picamera.array import PiRGBArray
+#from utilities import get_distance_metres
 
 class Drone:
 

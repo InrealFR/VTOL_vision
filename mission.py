@@ -20,12 +20,13 @@ from dronekit import connect, VehicleMode, LocationGlobalRelative, LocationGloba
 from pymavlink import mavutil
 from array import array
 from datetime import datetime
-from picamera import PiCamera,Color
-from picamera.array import PiRGBArray
+#from picamera import PiCamera,Color
+#from picamera.array import PiRGBArray
 
-from detection_target import Detection
+from detection import Detection
 from commande_drone import Drone
 import sys
+import time
 
 #--------------------- Parametres du vehicule ----------------------------
 vitesse = .3 #m/s
@@ -42,32 +43,29 @@ global white_square_seen
 global counter_no_detect
 counter_no_detect = 0
 global counter_white_square
-counter_no_detect = 0
+counter_white_square = 0
 global counter_something
 counter_something = 0
 
 global id_to_test
 id_to_test = -1
-
 global saved_markers
 # Initialized saved_markers with Unmanned Valley GPS position
 saved_markers = {-1: (LocationGlobalRelative(52.171490,4.417461,0), True)}
 
 
 global x_centerPixel_target
- x_centerPixel_target =  None
+x_centerPixel_target =  None
 global y_centerPixel_target
 y_centerPixel_target =  None
 global x_imageCenter
- x_imageCenter = 0
+x_imageCenter = 0
 global y_imageCenter
- y_imageCenter = 0
- 
+y_imageCenter = 0
 global altitudeAuSol
 global altitudeRelative
 global longitude
 global latitude
-global altitudeAuSol
 
 class RedirectText(object):
     def __init__(self,aWxTextCtrl):
@@ -86,7 +84,9 @@ redir=RedirectText(log)
 # sys.stdout=redir
 # sys.stderr=redir
 
-def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy):
+
+
+def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy,altitudeAuSol,x_centerPixel_target, y_centerPixel_target):
 
   # PID Coefficients
   kpx = 0.005
@@ -115,8 +115,8 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
         return 0, 0, 0, 0
     
       else :  # pas de Detection Drone prend de l'altitude => champ de vision plus large => détection plus aisée
-        vx = vz =  0
-        vy = 1
+        vx = vy =  0
+        vz = 1
         drone_object.set_velocity(vx, vy, vz, 1)
         #
     elif counter_no_detect > 1 :   # fixer la position du Drone en cas de non detection pour s'assurer qu'il traite l'image un certain nombre de fois
@@ -129,8 +129,8 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     
   else :  # Detection ok
     print ("[asserv] detection OK")
-    errx = detection_object.x_imageCenter - x_centerPixel_target #le déplacement à effectuer en x (pos de notre caméra - pos du carré sur la camera)
-    erry = detection_object.y_imageCenter - y_centerPixel_target
+    errx = 324 - x_centerPixel_target #le déplacement à effectuer en x (pos de notre caméra - pos du carré sur la camera)
+    erry = 224 - y_centerPixel_target
     
     dist_center = math.sqrt(errx**2+erry**2)
     dist_angle = atan2(erry, errx)
@@ -138,7 +138,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     alpha = dist_angle + heading
     errx = dist_center * cos(alpha)
     erry = dist_center * sin(alpha)
-    if abs(errx) <= 10:   #marge de 10pxl pour considerer que la cible est au centre de l image
+    if abs(errx) <= 50:   #marge de 10pxl pour considerer que la cible est au centre de l image
       errx = 0
     if abs(erry) <= 10:
       erry = 0
@@ -188,6 +188,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
       #print("vy : "+str(vy)+" vx : "+str(vx)+" vz : "+str(vz)+" dist_center decale")
 
   # Return last errors and sums for derivative and integrator terms
+  print(" errx :" + str(errx) + " erry : " + str(erry))
   return errx, erry, errsumx, errsumy
 
 
@@ -199,7 +200,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
 
 #---------------------------------------------MISSION PRINCIPALE--------------------------------------
 
-def mission_largage(drone_name, id_to_find, truck): #drone_name : optionnel pour nous (pas de servo) , truck aussi (pas divers cas d'aterrissages)
+def mission_largage(drone_name, id_to_find, truck):
 
   id_to_test = id_to_find
   
@@ -210,34 +211,43 @@ def mission_largage(drone_name, id_to_find, truck): #drone_name : optionnel pour
   errsumx = 0
   errsumy = 0
   vid = cv2.VideoCapture(0)
-  
+  counter_no_detect = 0
+  counter_white_square = 0
+  altitudeAuSol = 0.0
+  dist_center = 0.0
   print("[mission] Mission started!")
   drone_object = Drone()    #permet de connecter le drone via dronekit en creant l objet drone
-  detection_object = Detection(vid, id_to_find)  # creer l objet detection
+  detection_object = Detection(vid)  # creer l objet detection
   #########verrouillage servomoteur et procedure arm and takeoff
   print("[mission] Launching and take off routine...")
+ 
   drone_object.lancement_decollage(5, drone_name)
 
   #########passage en mode AUTO et debut de la mission
   drone_object.passage_mode_Auto()
+  #self.vehicle.mode = VehicleMode("AUTO")
   
   # a partir d'un certain waypoint declencher le thread de detection
-  while drone_object.vehicle.commands.next <= 3:
+  while drone_object.vehicle.commands.next <= 1:
     pass
 
   while (drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO"):
+    time.sleep(1)
     # actualisation de l altitude et gps
-    altitudeAuSol = drone_object.vehicle.rangefinder.distance
+    print("actualisation gps")
+    #altitudeAuSol = drone_object.vehicle.rangefinder.distance #On récupère l'altitude au sol grâce à un capteur (rangefinder) qui regarde vers le bas
+    altitudeAuSol = -1*drone_object.vehicle.location.local_frame.down
+    print(altitudeAuSol)
     altitudeRelative = drone_object.vehicle.location.global_relative_frame.alt
     longitude = drone_object.vehicle.location.global_relative_frame.lon
     latitude = drone_object.vehicle.location.global_relative_frame.lat
     heading = drone_object.vehicle.attitude.yaw
     
-    #le script  Detection Target
-    x_centerPixel_target, y_centerPixel_target, aruco_found, square_found = detection_object.Detection_aterr(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
+    #le script Detection Target
+    x_centerPixel_target, y_centerPixel_target, aruco_found, square_found = detection_object.Detection_aterr(latitude, longitude, altitudeAuSol, heading, id_to_test)
     # Asservissement control
     if drone_object.get_mode() == "GUIDED" :
-      last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy)
+      last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, altitudeAuSol,x_centerPixel_target, y_centerPixel_target)
     
     if not drone_object.get_mode() == "GUIDED" and not drone_object.get_mode() == "AUTO":
       break
@@ -255,9 +265,13 @@ def mission_largage(drone_name, id_to_find, truck): #drone_name : optionnel pour
       while drone_object.get_mode() != "GUIDED":
         drone_object.set_mode("GUIDED")
 
-      # print("x_centerPixel_target : "+str(x_centerPixel_target))
+      print("x_centerPixel_target : "+str(x_centerPixel_target))
+      print("y_centerPixel_target : "+str(y_centerPixel_target))
+      print("x_object : "+str(detection_object.x_imageCenter))
+      print("y_object : "+str(detection_object.y_imageCenter))
       dist_center = math.sqrt((detection_object.x_imageCenter-x_centerPixel_target)**2+(detection_object.y_imageCenter-y_centerPixel_target)**2)
-      print("[mission] Current distance: %.2fpx ; Altitude: %.2fm." % (dist_center, altitudeAuSol))
+      #print("[mission] Current distance: %a ; Altitude: %b" % (dist_center, altitudeAuSol))
+
       elapsed_time = time.time() - start_time
  
     #--------------- Case 2: Some white square seen --------------------
@@ -282,7 +296,7 @@ def mission_largage(drone_name, id_to_find, truck): #drone_name : optionnel pour
 
     #--------------- Case 3: No detection of white or ArUco ------------
     else:
-      print("[detection] Case 3: No detection of white or ArUco.")
+      print("[detection] Case 3: No detection of white or ArUco. (%a times)" %counter_no_detect)
 
       counter_no_detect += 1
       counter_white_square = 0
@@ -317,27 +331,28 @@ def mission_largage(drone_name, id_to_find, truck): #drone_name : optionnel pour
   if drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO":  #securite pour ne pas que le drone reprenne la main en cas d interruption
     #########repart en mode RTL
     drone_object.set_mode("RTL") #### modif preciser qu on est en guided avant et ajouter l altitude du RTL
-#--------------------------------------------------------------
 
-if __name__ == "__main__":
+mission_largage('futuna',50,False)
+#--------------------------------------------------------------
+#if __name__ == "__main__":
 
   # Mission de largage classique
-  drone_name = str(sys.argv[1])
-  id_to_find = int(sys.argv[2])
-  if len(sys.argv) >= 3 and drone_name in ["futuna", "spacex", "walle"]:
-    mission_largage(drone_name, id_to_find, False)
+  #drone_name = str(sys.argv[1])
+  #id_to_find = int(sys.argv[2])
+  #if len(sys.argv) >= 3 and drone_name in ["futuna", "spacex", "walle"]:
+    #mission_largage(drone_name, id_to_find, False)
     # print("Mission largage")
-    if len(sys.argv) == 4:
-      if sys.argv[3] == "silent":
+    #if len(sys.argv) == 4:
+      #if sys.argv[3] == "silent":
         # Mission de largage silencieuse
-        mission_silent(drone_name)
+        #mission_silent(drone_name)
         # print("Mission silent")
-      elif sys.argv[3] == "truck":
+      #elif sys.argv[3] == "truck":
         # Mission de largage sur camion
-        mission_largage(drone_name, id_to_find, True)
+        #mission_largage(drone_name, id_to_find, True)
 
   # Erreur dans la saisie des arguments
-  else:
-    print("Please specify: \n * a valid drone name \n * an ArUco id argument \n * a mission keyword if necessary (silent or truck)")
+  #else:
+    #print("Please specify: \n * a valid drone name \n * an ArUco id argument \n * a mission keyword if necessary (silent or truck)")
     
-  print ("End of code")
+  #print ("End of code")
