@@ -31,7 +31,7 @@ class Drone:
   def __init__(self):
     #--------------------- Connection ----------------------------
     print("Connecting...")
-    chemin_drone = '/dev/ttyACM0'
+    chemin_drone = '127.0.0.1:14550'
     self.vehicle = connect(chemin_drone, wait_ready=True, baud=57600, heartbeat_timeout=2)
     print("Connection OK")
 
