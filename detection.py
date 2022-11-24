@@ -55,12 +55,14 @@ class Detection:
 
         
     def Detection_aterr(self, latitude, longitude, altitude, direction):
+        
          #INITIALISATION
         start_time = time.time()
         self.aruco_found, self.square_found = False
         x_pixel, y_pixel = None
         arucoId = 0
         capture, frame = self.camera.read()  #recuperation de la vidéo générée auparavant
+        
         font = cv2.FONT_HERSHEY_PLAIN  # Text font for frame annotation
         cv2.imshow('begin', frame)
 
@@ -70,11 +72,10 @@ class Detection:
         corners, id, rej = aruco.detectMarkers(gray, self.arucoDictionnary, parameters=self.arucoParameters)
 
         if len(corners) == 0:  # si on ne détecte pas d'aruco, on cherche un carré blanc sur l'image pour asservir dessus
-            # --------------- Detection White Squares ------------------------
-            # ------------- Image processing for white squares -------------
-            blur = cv2.GaussianBlur(frame, (5, 5), 0)  # Gaussian blur filter : removing noise
-            hls = cv2.cvtColor(blur, cv2.COLOR_BGR2HLS)  # Convert from BGR to HLS color space
-            lower_bound = (0, 230, 0)  # white color in HLS space
+            
+            blur = cv2.GaussianBlur(frame, (5, 5), 0)  # pour le bruit
+            hls = cv2.cvtColor(blur, cv2.COLOR_BGR2HLS)  #HLS pour le blanc
+            lower_bound = (0, 230, 0) 
             upper_bound = (255, 255, 255)
             mask_hls = cv2.inRange(hls, lower_bound, upper_bound)
             #cv2.imshow('blur', blur)
@@ -83,8 +84,8 @@ class Detection:
             name = "Test_1_Img_"
             cv2.imwrite(os.path.join(self.path, "hls_" + name + ".png"),
                         mask_hls)  # écriture de notre image traitée dans le dossier
+            
             # Closing detected elements
-
             closing_kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(7,7))  # notre kernell est de 7x7 et test du rectangle
             mask_closing = cv2.morphologyEx(mask_hls, cv2.MORPH_CLOSE, closing_kernel)
             contours, hierarchy = cv2.findContours(mask_closing, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -110,10 +111,12 @@ class Detection:
                         # Boolean and counter update
                         self.square_found = True
                         # ici : on a un carré blanc donc potentiellement un aruco, il faut asservir le drone en position pour se rapprocher et verifier si oui ou non
+                        #dans notre fonction mission
+        
         else: #on a détécté un Aruco : cest plus simple
             ids = id.flatten()  # on s'assure que notre liste d'id est une liste de dimension 1
-            for (markersCorners, markersIds) in zip(corners,
-                                                    ids):  # on boucle sur les tuples de (corners, id)
+            for (markersCorners, markersIds) in zip(corners, ids):  # on boucle sur les tuples de (corners, id)
+                
                 corners = markersCorners.reshape((4, 2))  # les 4 coins et 2 coordonnées
                 (topLeft, topRight, bottomLeft, bottomRight) = corners
                 topLeft = (int(topLeft[0]),int(topLeft[1]))  # on récupère les coordonnées de chaque point pour l'affichage
@@ -129,6 +132,10 @@ class Detection:
                 cv2.putText(frame, str(markersIds),
                             (topLeft[0], topLeft[1] - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 0, 255), 2)
                 cv2.imwrite(os.path.join(self.path, "final_.png"), frame)
+                
         #cv2.imshow('final', frame)
         cv2.waitKey(0)
         return(x_pixel, y_pixel , self.aruco_found , self.square_found) #on renvoie les deux booleens et nos pixels cible
+        #Si nos deux booleens sont faux : on n'a ni détécté d'aruco et de carré blanc, on continue la mission
+        #Si aruco_found est vrai : on s'asservit dessus, c'est gagné
+        #Si square_found est vrai : on s'asservit dessus et on vérifie que c'est bien un Aruco
