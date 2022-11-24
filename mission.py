@@ -39,20 +39,30 @@ global good_aruco_found
 global white_square_seen
 
 # Counter variables
-global counter_no_detect = 0
-global counter_white_square = 0
-global counter_something = 0
+global counter_no_detect
+counter_no_detect = 0
+global counter_white_square
+counter_no_detect = 0
+global counter_something
+counter_something = 0
 
-global id_to_test = -1
+global id_to_test
+id_to_test = -1
+
 global saved_markers
 # Initialized saved_markers with Unmanned Valley GPS position
 saved_markers = {-1: (LocationGlobalRelative(52.171490,4.417461,0), True)}
 
 
-global x_centerPixel_target =  None
-global y_centerPixel_target =  None
-global x_imageCenter = 0
-global y_imageCenter = 0
+global x_centerPixel_target
+ x_centerPixel_target =  None
+global y_centerPixel_target
+y_centerPixel_target =  None
+global x_imageCenter
+ x_imageCenter = 0
+global y_imageCenter
+ y_imageCenter = 0
+ 
 global altitudeAuSol
 global altitudeRelative
 global longitude
@@ -189,7 +199,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
 
 #---------------------------------------------MISSION PRINCIPALE--------------------------------------
 
-def mission_largage(drone_name, id_to_find, truck):
+def mission_largage(drone_name, id_to_find, truck): #drone_name : optionnel pour nous (pas de servo) , truck aussi (pas divers cas d'aterrissages)
 
   id_to_test = id_to_find
   
@@ -215,7 +225,7 @@ def mission_largage(drone_name, id_to_find, truck):
   while drone_object.vehicle.commands.next <= 3:
     pass
 
-  while (drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO") or not package_dropped:
+  while (drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO"):
     # actualisation de l altitude et gps
     altitudeAuSol = drone_object.vehicle.rangefinder.distance
     altitudeRelative = drone_object.vehicle.location.global_relative_frame.alt
@@ -223,11 +233,11 @@ def mission_largage(drone_name, id_to_find, truck):
     latitude = drone_object.vehicle.location.global_relative_frame.lat
     heading = drone_object.vehicle.attitude.yaw
     
-    #le srcipt Detection Target
+    #le script  Detection Target
     x_centerPixel_target, y_centerPixel_target, aruco_found, square_found = detection_object.Detection_aterr(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
     # Asservissement control
     if drone_object.get_mode() == "GUIDED" :
-      last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, False, truck)
+      last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy)
     
     if not drone_object.get_mode() == "GUIDED" and not drone_object.get_mode() == "AUTO":
       break
@@ -248,7 +258,6 @@ def mission_largage(drone_name, id_to_find, truck):
       # print("x_centerPixel_target : "+str(x_centerPixel_target))
       dist_center = math.sqrt((detection_object.x_imageCenter-x_centerPixel_target)**2+(detection_object.y_imageCenter-y_centerPixel_target)**2)
       print("[mission] Current distance: %.2fpx ; Altitude: %.2fm." % (dist_center, altitudeAuSol))
-
       elapsed_time = time.time() - start_time
  
     #--------------- Case 2: Some white square seen --------------------
