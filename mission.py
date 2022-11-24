@@ -48,7 +48,7 @@ global saved_markers
 # Initialized saved_markers with Unmanned Valley GPS position
 saved_markers = {-1: (LocationGlobalRelative(52.171490,4.417461,0), True)}
 
-global package_dropped = False
+
 global x_centerPixel_target =  None
 global y_centerPixel_target =  None
 global x_imageCenter = 0
@@ -77,20 +77,6 @@ redir=RedirectText(log)
 # sys.stderr=redir
 
 def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy):
-  # Boolean variables
-  global aruco_seen
-  global aruco_found
-  global square_found
-
-  # Counter variables
-  global counter_no_detect
-  global counter_white_square
-
-  global x_centerPixel_target
-  global y_centerPixel_target
-  global altitudeAuSol
-  global id_to_test
-  global altitudeRelative
 
   # PID Coefficients
   kpx = 0.005
@@ -99,10 +85,8 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
   kdy = 0.0001
   kix = 0.000001  # 0.0000001
   kiy = 0.000001
- 
-  vx = 0
-  vy = 0
-  vz = 0
+  
+  vx = vy = vz = 0
 
   if altitudeAuSol < 5 : #on asservit moins violent quand on se raproche du sol
     kpx = 0.003
@@ -112,23 +96,22 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     kpy = 0.005
 
   print("Pixels values - x:%s - y:%s" % (x_centerPixel_target, y_centerPixel_target))
-  if x_centerPixel_target == None or y_centerPixel_target == None :
-      0# echec Detection
+  
+  if x_centerPixel_target == None or y_centerPixel_target == None : # echec Detection
     if counter_no_detect > 10 :   #on fixe le nombre d'image consecutive sans Detection pour considerer qu il ne detecte pas
-      if altitudeAuSol > 30 :  # si on altitudeRelative sup a 25m stop le thread
+      if altitudeAuSol > 30 :  # arrêt du drone si il est trop haut
         drone_object.set_velocity(0, 0, 0, 1)
         print ("[asserv] altitudeRelative > 30")
         return 0, 0, 0, 0
-      else :  # pas de Detection Drone prend de l altitude
-        vx = 0
+    
+      else :  # pas de Detection Drone prend de l'altitude => champ de vision plus large => détection plus aisée
+        vx = vz =  0
         vy = 1
-        vz = 0
         drone_object.set_velocity(vx, vy, vz, 1)
         #
-    elif counter_no_detect > 1 :   # fixer la position du Drone en cas de non Detection
-      drone_object.set_velocity(0, 0, 0, 1)
-      #print ("[asserv] compteur_no_detect > 2   stabilisation drone")
-  
+    elif counter_no_detect > 1 :   # fixer la position du Drone en cas de non detection pour s'assurer qu'il traite l'image un certain nombre de fois
+      vx = vy = vz = 0
+      drone_object.set_velocity(vx, vy, vz, 1)   
     errx = 0
     erry = 0
     errsumx = 0
@@ -136,8 +119,9 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     
   else :  # Detection ok
     print ("[asserv] detection OK")
-    errx = detection_object.x_imageCenter - x_centerPixel_target
+    errx = detection_object.x_imageCenter - x_centerPixel_target #le déplacement à effectuer en x (pos de notre caméra - pos du carré sur la camera)
     erry = detection_object.y_imageCenter - y_centerPixel_target
+    
     dist_center = math.sqrt(errx**2+erry**2)
     dist_angle = atan2(erry, errx)
     heading = drone_object.vehicle.attitude.yaw
@@ -195,35 +179,31 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
 
   # Return last errors and sums for derivative and integrator terms
   return errx, erry, errsumx, errsumy
-  
-#--------------------------------------------------------------
+
+
+
+
+
+
+
+
+#---------------------------------------------MISSION PRINCIPALE--------------------------------------
+
 def mission_largage(drone_name, id_to_find, truck):
-  # Boolean variables
-  global aruco_seen
-  global aruco_found
-  global square_found
 
-  # Counter variables
-  global counter_no_detect
-  global counter_white_square
-
-  global x_centerPixel_target
-  global y_centerPixel_target
-  global altitudeAuSol
-  global id_to_test
-  global saved_markers
-
-  id_to_test = -1
+  id_to_test = id_to_find
+  
   first_time_aruco_found = True
   
   last_errx = 0
   last_erry = 0
   errsumx = 0
   errsumy = 0
-
+  vid = cv2.VideoCapture(0)
+  
   print("[mission] Mission started!")
   drone_object = Drone()    #permet de connecter le drone via dronekit en creant l objet drone
-  detection_object = Detection(PiCamera(), id_to_find)  # creer l objet detection
+  detection_object = Detection(vid, id_to_find)  # creer l objet detection
   #########verrouillage servomoteur et procedure arm and takeoff
   print("[mission] Launching and take off routine...")
   drone_object.lancement_decollage(5, drone_name)
@@ -244,7 +224,7 @@ def mission_largage(drone_name, id_to_find, truck):
     heading = drone_object.vehicle.attitude.yaw
     
     #le srcipt Detection Target
-    x_centerPixel_target, y_centerPixel_target, aruco_seen, aruco_found, square_found, saved_markers = detection_object.Detection_aruco(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
+    x_centerPixel_target, y_centerPixel_target, aruco_found, square_found = detection_object.Detection_aterr(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
     # Asservissement control
     if drone_object.get_mode() == "GUIDED" :
       last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, False, truck)
@@ -297,142 +277,6 @@ def mission_largage(drone_name, id_to_find, truck):
 
       counter_no_detect += 1
       counter_white_square = 0
-
-      # print("[mission] No detection or wrong tag (%i times)" % compteur_no_detect)
-      # print("[mission] compteur_whiteSquare (%i times)" % compteur_whiteSquare)
-      
-      if counter_no_detect > 5:
-        print("[mission] 5 times without tag or white detection, not interesting place.")
-
-        while drone_object.get_mode() != "AUTO" :
-          drone_object.passage_mode_Auto()
-
-          # Reset visual PID errors
-          last_errx = 0
-          last_erry = 0
-          errsumx = 0
-          errsumy = 0
-
-          saved_markers[id_to_test] = (saved_markers[id_to_test][0], True)
-          id_to_test = -1
-
-  # Geofencing security, shutdown motors, VERY DANGEROUS!!!
-  # if drone_object.get_mode() == "BRAKE":
-  #   # print("Enter BRAKE mode")
-  #   msg= drone_object.vehicle.message_factory.command_long_encode(
-  #     # time_boot_ms (not used)
-  #     0, 0,  # target system, target component
-  #     mavutil.mavlink.MAV_CMD_DO_FLIGHTTERMINATION,  # frame
-  #     0, 1, 0, 0, 0, 0, 0, 0)
-
-  if drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO":  #securite pour ne pas que le drone reprenne la main en cas d interruption
-    #########repart en mode RTL
-    drone_object.set_mode("RTL") #### modif preciser qu on est en guided avant et ajouter l altitude du RTL
-#--------------------------------------------------------------
-
-#--------------------------------------------------------------
-def mission_silent(drone_name):
-  # Boolean variables
-  global aruco_seen
-  global aruco_found
-  global square_found
-
-  # Counter variables
-  global counter_no_detect
-  global counter_something
-
-  global x_centerPixel_target
-  global y_centerPixel_target
-  global altitudeAuSol
-  global id_to_test
-  global saved_markers
-
-  id_to_test = -1
-  first_time_aruco_found = True
-  
-  last_errx = 0
-  last_erry = 0
-  errsumx = 0
-  errsumy = 0
-
-  print("[mission] Mission started!")
-  drone_object = Drone()    #permet de connecter le drone via dronekit en creant l objet drone
-  detection_object = Detection(PiCamera(), id_to_find)  # creer l objet detection
-  #########verrouillage servomoteur et procedure arm and takeoff
-  print("[mission] Launching and take off routine...")
-  drone_object.lancement_decollage(5, drone_name)
-
-  #########passage en mode AUTO et debut de la mission
-  drone_object.passage_mode_Auto()
-  
-  # a partir d'un certain waypoint declencher le thread de detection
-  while drone_object.vehicle.commands.next <= 3:
-    pass
-
-  while (drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO") or not package_dropped:
-    # actualisation de l altitude et gps
-    altitudeAuSol = drone_object.vehicle.rangefinder.distance
-    altitudeRelative = drone_object.vehicle.location.global_relative_frame.alt
-    longitude = drone_object.vehicle.location.global_relative_frame.lon
-    latitude = drone_object.vehicle.location.global_relative_frame.lat
-    heading = drone_object.vehicle.attitude.yaw
-    
-    #le srcipt Detection Target
-    x_centerPixel_target, y_centerPixel_target, aruco_found, square_found  = detection_object.Detection_aruco(latitude, longitude, altitudeAuSol, heading, saved_markers, id_to_test, True)
-    # Asservissement control
-    if drone_object.get_mode() == "GUIDED" :
-      last_errx, last_erry, errsumx, errsumy = asservissement(drone_object, detection_object, last_errx, last_erry, errsumx, errsumy, True)
-    
-    if not drone_object.get_mode() == "GUIDED" and not drone_object.get_mode() == "AUTO":
-      break
-  
-    #--------------- Case 1: ArUco ID (good or not) or white square found -----------------------
-    if aruco_found or square_found or aruco_seen:
-      print("[detection] Case 1: Something interesting!")
-
-      if first_time_aruco_found:
-        first_time_aruco_found = False
-        start_time = time.time()
-      
-      counter_no_detect = 0
-      counter_something += 1
-
-      while drone_object.get_mode() != "GUIDED":
-        drone_object.set_mode("GUIDED")
-
-      # print("x_centerPixel_target : "+str(x_centerPixel_target))
-      dist_center = math.sqrt((detection_object.x_imageCenter-x_centerPixel_target)**2+(detection_object.y_imageCenter-y_centerPixel_target)**2)
-      print("[mission] Current distance: %.2fpx ; Altitude: %.2fm." % (dist_center, altitudeAuSol))
-
-      if counter_something > 5:
-        print("[mission] Début du largage !")
-        drone_object.move_servo(10, True, drone_name)
-        drone_object.move_servo(9, True, drone_name)
-
-      elapsed_time = time.time() - start_time
-      # Conditions pour faire le RTL
-      if elapsed_time > 90:
-        print("[mission] Fin du largage !")
-        package_dropped = True
-        break
-
-      # Check saved_ids in detection dictionary
-      for saved_id in saved_markers :
-        # Check boolean: if False, needs to be explored
-        if saved_markers[saved_id][1] == False:
-          # if saved_id > 1001 and saved_markers[saved_id-1][1] == False:
-          #  saved_markers[saved_id-1].pop()
-          while drone_object.get_mode() != "GUIDED":
-            drone_object.set_mode("GUIDED")
-          id_to_test = saved_id
-          print("[mission] Detection targetted towards id %s" % id_to_test)
-
-    #--------------- Case 2: No detection of white or ArUco ------------
-    else:
-      print("[detection] Case 2: No detection of white or ArUco.")
-
-      counter_no_detect += 1
-      counter_something = 0
 
       # print("[mission] No detection or wrong tag (%i times)" % compteur_no_detect)
       # print("[mission] compteur_whiteSquare (%i times)" % compteur_whiteSquare)
