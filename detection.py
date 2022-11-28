@@ -62,9 +62,8 @@ class Detection:
         x_pixel = y_pixel = None
         arucoId = id_to_test
         capture, frame = self.camera.read()  #recuperation de la vidéo générée auparavant
-        cv2.imshow('begin',frame)
         font = cv2.FONT_HERSHEY_PLAIN  # Text font for frame annotation
-        cv2.imwrite(os.path.join(self.path,"first" + str(self.compteur) + ".png"),frame)  # écriture 1st image
+        #cv2.imwrite(os.path.join(self.path,"first" + str(self.compteur) + ".png"),frame)  # écriture 1st image
             
 
         # Detection Aruco
@@ -83,8 +82,8 @@ class Detection:
             #cv2.imshow('hls', mask_hls)
 
             name = "Test_1_Img_"
-            cv2.imwrite(os.path.join(self.path, "hls_" + name + ".png"),
-                        mask_hls)  # écriture de notre image traitée dans le dossier
+            #cv2.imwrite(os.path.join(self.path, "hls_" + name + ".png"),
+                       # mask_hls)  # écriture de notre image traitée dans le dossier
             
             # Closing detected elements
             closing_kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(7,7))  # notre kernell est de 7x7 et test du rectangle
@@ -106,7 +105,7 @@ class Detection:
                     cv2.drawContours(frame, [c], -1, (0, 0, 255), 2)
                     x_pixel =  x_centerPixel_target = np.mean(c, axis=0)[0][0]
                     y_pixel =  y_centerPixel_target = np.mean(c, axis=0)[0][1]
-                    cv2.imwrite(os.path.join(self.path, "final_.png"), frame)
+                    #cv2.imwrite(os.path.join(self.path, "final_.png"), frame)
                     pixelTest = mask_closing[int(y_centerPixel_target), int(x_centerPixel_target)]
                     if pixelTest == 255:  # verifie couleur du carre detecte 255 c est blanc
                         # Boolean and counter update
@@ -134,7 +133,8 @@ class Detection:
                 cv2.circle(frame, (x_pixel,y_pixel) , radius = 1, color = (0,0,255),thickness = 10)
                 cv2.putText(frame, str(markersIds),
                             (topLeft[0], topLeft[1] - 10), cv2.FONT_HERSHEY_PLAIN, 0.5, (0, 0, 255), 2)
-                cv2.imwrite(os.path.join(self.path, "final_"+ str(self.compteur) + ".png"), frame)
+                #cv2.imwrite(os.path.join(self.path, "final_"+ str(self.compteur) + ".png"), frame)
+                #cv2.imwrite(os.path.join(self.path, "final_"+ ".png"), frame)
                 
         cv2.imshow('final', frame)
         return(x_pixel, y_pixel , self.aruco_found , self.square_found) #on renvoie les deux booleens et nos pixels cible
