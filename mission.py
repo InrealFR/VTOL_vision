@@ -116,7 +116,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     
       else :  # pas de Detection Drone prend de l'altitude => champ de vision plus large => détection plus aisée
         vx = vy =  0
-        vz = 1
+        vz = -1
         drone_object.set_velocity(vx, vy, vz, 1)
         #
     elif counter_no_detect > 1 :   # fixer la position du Drone en cas de non detection pour s'assurer qu'il traite l'image un certain nombre de fois
@@ -138,9 +138,9 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     alpha = dist_angle + heading
     errx = dist_center * cos(alpha)
     erry = dist_center * sin(alpha)
-    if abs(errx) <= 50:   #marge de 10pxl pour considerer que la cible est au centre de l image
+    if abs(errx) <= 50:   #marge de 50pxl pour considerer que la cible est au centre de l image
       errx = 0
-    if abs(erry) <= 10:
+    if abs(erry) <= 20:
       erry = 0
         
     # PD control
@@ -151,6 +151,7 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     
     vx = (kpx * errx) + (kdx * dErrx) + (kix * errsumx)
     vy = (kpy * erry) + (kdy * dErry) + (kiy * errsumy)
+    vz = 0
     
     if altitudeAuSol < 3 :
       vz = 0.1  # a changer pour descendre
@@ -175,20 +176,21 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
       dist_center_threshold = 50
     
     else :
-      dist_center_threshold = 1000
+      dist_center_threshold = 300
 
     if dist_center <= dist_center_threshold :
       drone_object.set_velocity(vy, vx, vz, 1) 
       #print("vy : "+str(vy)+" vx : "+str(vx)+" vz : "+str(vz)+" dist_center <= 30"
     
     else :
-      #lancer un deplacement pour ce rapprocher du centre sans descendre ou monter
+      #lancer un deplacement pour se rapprocher du centre sans descendre ou monter
       vz = 0
       drone_object.set_velocity(vy, vx, vz, 1)  # Pour le sense de la camera, X controle le 'east' et Y controle le 'North'
       #print("vy : "+str(vy)+" vx : "+str(vx)+" vz : "+str(vz)+" dist_center decale")
 
   # Return last errors and sums for derivative and integrator terms
-  print(" errx :" + str(errx) + " erry : " + str(erry))
+  print(" errx :" + str(errx) + " erry : " + str(erry)+"\n")
+  
   return errx, erry, errsumx, errsumy
 
 
@@ -211,6 +213,7 @@ def mission_largage(drone_name, id_to_find, truck):
   errsumx = 0
   errsumy = 0
   vid = cv2.VideoCapture(0)
+  
   counter_no_detect = 0
   counter_white_square = 0
   altitudeAuSol = 0.0
@@ -221,18 +224,22 @@ def mission_largage(drone_name, id_to_find, truck):
   #########verrouillage servomoteur et procedure arm and takeoff
   print("[mission] Launching and take off routine...")
  
-  drone_object.lancement_decollage(5, drone_name)
+  drone_object.lancement_decollage(20, drone_name)
 
   #########passage en mode AUTO et debut de la mission
   drone_object.passage_mode_Auto()
   #self.vehicle.mode = VehicleMode("AUTO")
   
   # a partir d'un certain waypoint declencher le thread de detection
-  while drone_object.vehicle.commands.next <= 1:
+  while drone_object.vehicle.commands.next <= 0:
     pass
 
   while (drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO"):
-    time.sleep(1)
+    #time.sleep(1)
+    capture, frame = vid.read()
+    cv2.imshow('camera', frame)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+    	break
     # actualisation de l altitude et gps
     print("actualisation gps")
     #altitudeAuSol = drone_object.vehicle.rangefinder.distance #On récupère l'altitude au sol grâce à un capteur (rangefinder) qui regarde vers le bas
@@ -331,6 +338,7 @@ def mission_largage(drone_name, id_to_find, truck):
   if drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO":  #securite pour ne pas que le drone reprenne la main en cas d interruption
     #########repart en mode RTL
     drone_object.set_mode("RTL") #### modif preciser qu on est en guided avant et ajouter l altitude du RTL
+
 
 mission_largage('futuna',50,False)
 #--------------------------------------------------------------
