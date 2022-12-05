@@ -63,9 +63,6 @@ class Detection:
         arucoId = id_to_test
         capture, frame = self.camera.read()  #recuperation de la vidéo générée auparavant
         font = cv2.FONT_HERSHEY_PLAIN  # Text font for frame annotation
-        #cv2.imwrite(os.path.join(self.path,"first" + str(self.compteur) + ".png"),frame)  # écriture 1st image
-            
-
         # Detection Aruco
         # Il faut renvoyer deux bool (aruco_detected / white_square detected) et la position en (x,y) d'une potentielle detection
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -114,7 +111,7 @@ class Detection:
                         #dans notre fonction mission
         
         else: #on a détécté un Aruco : cest plus simple
-            ids = id.flatten()  # on s'assure que notre liste d'id est une liste de dimension 1
+            ids = id.flatten()  # on s'assure que notre liste d'id est une liste de 		dimension 1  
             self.aruco_found = True
             for (markersCorners, markersIds) in zip(corners, ids):  # on boucle sur les tuples de (corners, id)
                 

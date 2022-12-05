@@ -119,7 +119,16 @@ class Drone:
   def get_mode(self):
     last_mode = self.vehicle.mode.name
     return last_mode
-
+  def land(self):
+    print("Vehicle in LAND mode")
+    self.vehicle.mode = VehicleMode("LAND")
+    while not self.vehicle.location.global_relative_frame.alt==0:
+        if self.vehicle.location.global_relative_frame.alt < 1:
+            self.set_velocity_body(vehicle,0,0,0.1)
+    print("Aterrissage réussi. Arrêt moteurs.")
+    self.vehicle.armed = False
+    self.vehicle.close()
+    	
   def set_velocity(self, velocity_x, velocity_y, velocity_z, duration):
     # only let commands through at 10hz
     print("[mission] Velocity set to values: vx: %.2f ; vy: %.2f ; vz %.2f." % (velocity_x, velocity_y, velocity_z))

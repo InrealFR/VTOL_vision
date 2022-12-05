@@ -177,11 +177,18 @@ def asservissement(drone_object, detection_object, last_errx, last_erry, errsumx
     
     else :
       dist_center_threshold = 300
-
+    if altitudeAuSol <= 1:
+      print("Vehicle in LAND mode")
+      drone_object.vehicle.mode = VehicleMode("LAND")
+      drone_object.set_velocity(0,0,0.1,1)
+      while (drone_object.vehicle.location.global_relative_frame.alt !=0 & drone_object.vehicle.armed != True):
+       pass
+      print("Aterrissage réussi. Arrêt moteurs.")
+      drone_object.vehicle.armed = False
+      drone_object.vehicle.close()
     if dist_center <= dist_center_threshold :
       drone_object.set_velocity(vy, vx, vz, 1) 
-      #print("vy : "+str(vy)+" vx : "+str(vx)+" vz : "+str(vz)+" dist_center <= 30"
-    
+      #print("vy : "+str(vy)+" vx : "+str(vx)+" vz : "+str(vz)+" dist_center <= 30"	
     else :
       #lancer un deplacement pour se rapprocher du centre sans descendre ou monter
       vz = 0
@@ -213,7 +220,6 @@ def mission_largage(drone_name, id_to_find, truck):
   errsumx = 0
   errsumy = 0
   vid = cv2.VideoCapture(0)
-  
   counter_no_detect = 0
   counter_white_square = 0
   altitudeAuSol = 0.0
@@ -235,7 +241,7 @@ def mission_largage(drone_name, id_to_find, truck):
     pass
 
   while (drone_object.get_mode() == "GUIDED" or drone_object.get_mode() == "AUTO"):
-    #time.sleep(1)
+    #time.sleep(0.1)
     capture, frame = vid.read()
     cv2.imshow('camera', frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -311,20 +317,17 @@ def mission_largage(drone_name, id_to_find, truck):
       # print("[mission] No detection or wrong tag (%i times)" % compteur_no_detect)
       # print("[mission] compteur_whiteSquare (%i times)" % compteur_whiteSquare)
       
-      if counter_no_detect > 5:
-        print("[mission] 5 times without tag or white detection, not interesting place.")
+      if counter_no_detect > 35:
+        print("[mission] 35 times without tag or white detection, not interesting place.")
 
-        while drone_object.get_mode() != "AUTO" :
-          drone_object.passage_mode_Auto()
+        while drone_object.get_mode() != "RTL" :
+          drone_object.set_mode("RTL")
 
           # Reset visual PID errors
           last_errx = 0
           last_erry = 0
           errsumx = 0
           errsumy = 0
-
-          saved_markers[id_to_test] = (saved_markers[id_to_test][0], True)
-          id_to_test = -1
 
   # Geofencing security, shutdown motors, VERY DANGEROUS!!!
   # if drone_object.get_mode() == "BRAKE":
